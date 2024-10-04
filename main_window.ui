@@ -83,10 +83,7 @@
                   </widget>
                  </item>
                  <item>
-                  <widget class="QLabel" name="imageLabel">
-                   <property name="enabled">
-                    <bool>true</bool>
-                   </property>
+                  <widget class="QWidget" name="imageWidget" native="true">
                    <property name="sizePolicy">
                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
                      <horstretch>0</horstretch>
@@ -98,9 +95,6 @@
                      <width>300</width>
                      <height>300</height>
                     </size>
-                   </property>
-                   <property name="text">
-                    <string>image</string>
                    </property>
                   </widget>
                  </item>
