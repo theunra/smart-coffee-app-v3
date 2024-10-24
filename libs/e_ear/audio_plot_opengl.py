@@ -3,65 +3,39 @@ from PyQt5.QtCore import QTimer
 
 import OpenGL.GL as gl
 import sounddevice as sd
+import soundfile as sf
 import numpy as np
 
-import scipy.io.wavfile as wav
 
-class AudioPlotOpenGL(QOpenGLWidget):
+class AudioStreamer():
     def __init__(self, sample_rate=44100, buffer_duration=900, downsample_rate=44 * 2):
-        super().__init__()
         self.sample_rate = sample_rate
         self.downsample_rate = downsample_rate  # Downsample from 44,100 Hz to 1,000 Hz
         self.buffer_duration = buffer_duration  # Buffer duration in seconds (15 minutes = 900 seconds)
         self.total_samples = int((self.sample_rate / self.downsample_rate) * self.buffer_duration)  # 900,000 samples for 15 min
 
         self.audio_buffer = np.zeros(self.total_samples)
+        self.record_buffer = np.array([])
         self.current_index = 0  # Index to track where to place new audio samples
 
+        self.is_recording = True
+        self.recording_index = 0
 
         self.stream = sd.InputStream(samplerate=self.sample_rate, channels=1, blocksize=1024, callback=self.audio_callback)
         self.stream.start()
 
         # OpenGL update timer
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update)
-        self.timer.start(5000)  # Approx 60 FPS
+        self.timer.timeout.connect(self.save_buffer)
+        self.timer.start(5000)
 
-    def initializeGL(self):
-        gl.glClearColor(0.0, 0.0, 0.0, 1.0)  # Set the background color (black)
-        gl.glLineWidth(2)  # Set the line width for the audio plot
-
-    def resizeGL(self, w, h):
-        gl.glViewport(0, 0, w, h)
-        gl.glMatrixMode(gl.GL_PROJECTION)
-        gl.glLoadIdentity()
-        gl.glOrtho(0, self.total_samples, -1, 1, -1, 1)  # Adjust the orthographic view for the total sample size
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-
-    def paintGL(self):
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        gl.glLoadIdentity()
-
-        # Draw audio signal as a line strip
-        gl.glColor3f(0.0, 1.0, 0.0)  # Green color for the line
-        gl.glBegin(gl.GL_LINE_STRIP)
-        for i in range(self.total_samples):
-            gl.glVertex2f(i, self.audio_buffer[i])
-        gl.glEnd()
-
-    # def audio_callback(self, indata, frames, time, status):
-    #     """Callback for audio input. Receives audio samples."""
-    #     new_data = indata[:, 0]  # Mono audio data
-    #     downsampled_data = new_data[::self.downsample_rate]  # Downsample the audio data
-    #     shift_len = len(downsampled_data)
-
-    #     self.audio_buffer = np.roll(self.audio_buffer, -shift_len)
-    #     self.audio_buffer[-shift_len:] = downsampled_data
     def audio_callback(self, indata, frames, time, status):
         """Callback for audio input. Receives audio samples."""
         new_data = indata[:, 0]  # Mono audio data
         downsampled_data = new_data[::self.downsample_rate]  # Downsample the audio data
         shift_len = len(downsampled_data)
+
+        self.record_buffer = np.concatenate((self.record_buffer, new_data))
 
         # Ensure we don't exceed buffer length
         if self.current_index + shift_len < self.total_samples:
@@ -78,3 +52,49 @@ class AudioPlotOpenGL(QOpenGLWidget):
         # If there's no audio, keep the rest of the buffer filled with zeros
         if np.max(np.abs(new_data)) == 0:
             self.audio_buffer[-shift_len:] = 0
+
+    def save_buffer(self):
+        if(self.is_recording):
+            #save record buffer            
+            filename = 'audio/records/' + f'output.{str((self.recording_index)).zfill(5)}.wav'
+
+            sf.write(filename, self.record_buffer, self.sample_rate)
+            
+            #delete buffer
+            self.record_buffer = np.array([])
+
+            self.recording_index = self.recording_index + 1
+        else:
+            return
+
+
+class AudioPlotOpenGL(QOpenGLWidget):
+    def __init__(self, audio_streamer : AudioStreamer):
+        super(AudioPlotOpenGL, self).__init__()
+        self.audio_streamer = audio_streamer
+
+        self.audio_streamer.timer.timeout.connect(self.update)
+
+    def initializeGL(self):
+        gl.glClearColor(1.0, 1.0, 1.0, 1.0)  # Set the background color (black)
+        gl.glLineWidth(2)  # Set the line width for the audio plot
+
+    def resizeGL(self, w, h):
+        gl.glViewport(0, 0, w, h)
+        gl.glMatrixMode(gl.GL_PROJECTION)
+        gl.glLoadIdentity()
+        gl.glOrtho(0, self.audio_streamer.total_samples, -1, 1, -1, 1)  # Adjust the orthographic view for the total sample size
+        gl.glMatrixMode(gl.GL_MODELVIEW)
+
+    def paintGL(self):
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glLoadIdentity()
+
+        # Draw audio signal as a line strip
+        gl.glColor3f(0.0, 0.0, 1.0)  # Green color for the line
+        gl.glBegin(gl.GL_LINE_STRIP)
+        for i in range(self.audio_streamer.total_samples):
+            gl.glVertex2f(i, self.audio_streamer.audio_buffer[i])
+        gl.glEnd()
+
+    

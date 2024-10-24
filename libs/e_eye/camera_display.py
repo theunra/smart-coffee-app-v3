@@ -5,24 +5,29 @@ from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage
 
 
-class CameraDisplay(QLabel):
+class VisionStreamer():
     def __init__(self):
+        self.cap = cv.VideoCapture(0)  # Use camera index 0 (default camera)
+
+        self.timer = QTimer()
+        # self.timer.timeout.connect(self.update_image)
+        self.timer.start(30)
+
+class CameraDisplay(QLabel):
+    def __init__(self, vision_streamer : VisionStreamer):
         super(CameraDisplay, self).__init__()
+
+        self.vision_streamer = vision_streamer
+        self.vision_streamer.timer.timeout.connect(self.update_image)
 
         pixmap = QPixmap(500, 500)
         pixmap.fill()
         self.setPixmap(pixmap)
 
-        self.cap = cv.VideoCapture(0)  # Use camera index 0 (default camera)
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_image)
-        self.timer.start(30)
-
 
     def update_image(self):
         # Read frame from the camera
-        ret, frame = self.cap.read()
+        ret, frame = self.vision_streamer.cap.read()
 
         if ret:
             target = 400

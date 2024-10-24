@@ -3,11 +3,9 @@ import sys
 from PyQt5 import uic
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout
 
-from libs.e_ear.audio_plot_opengl import AudioPlotOpenGL
+from libs.e_ear.audio_plot_opengl import AudioPlotOpenGL, AudioStreamer
 from libs.e_nose.graph_canvas import GraphCanvas
-from libs.e_eye.camera_display import CameraDisplay
-
-
+from libs.e_eye.camera_display import CameraDisplay, VisionStreamer
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -16,15 +14,17 @@ class MainWindow(QMainWindow):
         # Load the .ui file dynamically
         uic.loadUi('main_window.ui', self)
 
-        self.graph_canvas = GraphCanvas(self)
-        self.audio_widget = AudioPlotOpenGL()
-        self.camera_display = CameraDisplay()
+        self.audio_streamer = AudioStreamer()
+        self.vision_streamer = VisionStreamer()
 
-        # # Insert the canvases into the respective layouts in the UI
-        graph_layout = QVBoxLayout(self.graphWidget)  # Assuming graphWidget is the placeholder in Qt Designer
+        self.graph_canvas = GraphCanvas(self)
+        self.audio_widget = AudioPlotOpenGL(audio_streamer=self.audio_streamer)
+        self.camera_display = CameraDisplay(vision_streamer=self.vision_streamer)
+
+        graph_layout = QVBoxLayout(self.graphWidget)
         graph_layout.addWidget(self.graph_canvas)
 
-        spectrum_layout = QVBoxLayout(self.spectrumWidget)  # Assuming spectrumWidget is the placeholder in Qt Designer
+        spectrum_layout = QVBoxLayout(self.spectrumWidget)
         spectrum_layout.addWidget(self.audio_widget)
 
         image_layout = QVBoxLayout(self.imageWidget)
