@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout
 
 from libs.e_ear.audio_plot_opengl import AudioPlotOpenGL, AudioStreamer
 from libs.e_nose.graph_canvas import GraphCanvas
+from libs.e_nose.enose import Enose
 from libs.e_eye.camera_display import CameraDisplay, VisionStreamer
 
 class MainWindow(QMainWindow):
@@ -14,6 +15,7 @@ class MainWindow(QMainWindow):
         # Load the .ui file dynamically
         uic.loadUi('main_window.ui', self)
 
+        # self.enose = Enose()
         self.audio_streamer = AudioStreamer()
         self.vision_streamer = VisionStreamer()
 
