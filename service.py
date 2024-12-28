@@ -16,6 +16,7 @@ class Command:
   STOP_SESSION = 0
   START_SESSION = 1
   PAUSE_SESSION = 2
+  SET_ROAST_LEVEL = 3
 
 app = Flask(__name__)
 
@@ -134,14 +135,49 @@ def gen_sensor():
 
         yield f"id: message\ndata: {gasDFtoJson(gas_datas)}\n\n"
 
-events = Queue()
+# events = Queue()
+is_starting = False
+progress = 0 #%
+start_time = 0 #sec 
+roast_level = 'unclass'
+duration = 5 * 60 #sec
 
 def gen_events():
-    global events
+    # global events
+    global is_starting, progress, start_time, duration
     while True:
-        if(events.empty() != True):
-            print("processing events")
-            event = events.get()
+        if(is_starting):
+            time.sleep(1)
+
+            end_time = start_time + duration
+
+            start_time += 1
+
+            # if(start_time >= 3 * 60):
+            #     roast_level = 'light'
+            # elif(start_time >= 4 * 60):
+            #     roast_level = 'medium'
+            # elif(start_time >= 4.3 * 60):
+            #     roast_level = 'dark'
+
+            if(start_time >= end_time):
+                progress = 100
+            else:
+                progress = 100 * (start_time / end_time)
+
+            data = {"event" : "roast", "progress" : progress, "level" : roast_level}
+
+            yield f"id: message\ndata: {json.dumps(data)}\n\n"
+        else:
+            time.sleep(1)
+
+            data = {"event" : "roast", "progress" : 0, "level" : roast_level}
+
+            yield f"id: message\ndata: {json.dumps(data)}\n\n"
+        
+        # if(events.empty() != True):
+            # print("processing events")
+            # event = events.get()
 
 @app.route('/video_feed')
 def video_feed():
@@ -165,6 +201,8 @@ def events_feed():
 
 @app.route('/session', methods = ['POST'])
 def session():
+    global is_starting, progress, start_time, duration, roast_level
+
     if request.method == 'POST':
         data = request.json
 
@@ -174,10 +212,20 @@ def session():
 
         if(command == Command.START_SESSION):
             print("starting session")
+            is_starting = True
+            progress = 0 #%
+            start_time = 0 #sec 
+
         elif(command == Command.STOP_SESSION):
             print("stopping session")
+            is_starting = False
+
         elif(command == Command.PAUSE_SESSION):
             print("pausing session")
+        
+        elif(command == Command.SET_ROAST_LEVEL):
+            print("set roast level")
+            roast_level = data["level"]
 
         return Response("ok")
 
