@@ -22,6 +22,22 @@ app = Flask(__name__)
 
 CORS(app)
 
+import cv2, glob
+
+"""
+camera = None
+
+for camera_id in glob.glob("/dev/video?"):
+    try:
+        camera = cv2.VideoCapture(camera_id)
+    except Exception as e:
+        print(e)
+        
+if(camera == None):
+    exit();
+else:
+    print(camera)
+"""
 camera = cv2.VideoCapture(0)
 
 audio_buffer = np.array([])
@@ -74,11 +90,12 @@ def gasDFtoJson(datas : pd.DataFrame):
 def index():
     return render_template('index.html')
 
-def gen_video(camera : cv2.VideoCapture):
-    global image_jpeg_bytes
+def gen_video():
+    global image_jpeg_bytes, camera
 
     while True:
         ret, frame = camera.read()
+
         success, jpeg_data = cv2.imencode('.jpeg', frame)
         jpeg_bytes = jpeg_data.tobytes()  # Convert to bytes if needed
 
@@ -181,7 +198,7 @@ def gen_events():
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(gen_video(camera),
+    return Response(gen_video(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/audio_feed')
