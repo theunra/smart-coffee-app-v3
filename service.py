@@ -12,11 +12,33 @@ from flask_cors import CORS
 from libs.database.database import Database
 from libs.e_ear.audio_streamer import AudioStreamer
 
+from libs.e_nose.SerialHandler import SerialHandler
+import threading
+from datetime import datetime
+import json
+import struct
+
 class Command:
   STOP_SESSION = 0
   START_SESSION = 1
   PAUSE_SESSION = 2
   SET_ROAST_LEVEL = 3
+
+class Message:
+    START_SAMPLING = 0
+    STOP_SAMPLING = 1
+    CYCLE_START = 2
+    SENSOR_DATA = 3
+
+PORT = "/dev/ttyUSB0"
+# PORT = "COM18"
+BAUDRATE = 115200
+
+serial_handler = SerialHandler(PORT, BAUDRATE)
+status = "preheat"
+filetime = datetime.now().isoweekday()
+filename = "output.txt"
+is_run = True
 
 app = Flask(__name__)
 
@@ -135,22 +157,69 @@ def gen_audio():
 
         audio_streamer.audio_buffer_ready = False
 
+temp_mq135  = 0
+temp_mq136  = 0
+temp_mq137  = 0
+temp_mq138  = 0
+temp_mq2    = 0
+temp_mq3    = 0
+temp_tgs822 = 0
+temp_2620   = 0
+
+gas_data_counter = 0
+gas_data_max = 20
+
 def gen_sensor():
-    global gas_datas    
+    global gas_datas, gas_data_counter, gas_data_max
+    global temp_mq135, temp_mq136, temp_mq137, temp_mq138, temp_mq2, temp_mq3, temp_tgs822, temp_2620  
 
     while True:
-        gas_datas["MQ135"]      = gas_datas["MQ135"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["MQ136"]      = gas_datas["MQ136"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["MQ137"]      = gas_datas["MQ137"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["MQ138"]      = gas_datas["MQ138"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["MQ2"]        = gas_datas["MQ2"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["MQ3"]        = gas_datas["MQ3"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["TGS822"]     = gas_datas["TGS822"].shift(-1, fill_value=random.randint(0,100))
-        gas_datas["TGS2620"]    = gas_datas["TGS2620"].shift(-1, fill_value=random.randint(0,100))
+        try:
+            data = serial_handler.read()
 
-        time.sleep(1)  # Send updates every second
+            message_id = data[0]
+            
+            if(message_id == Message.SENSOR_DATA):
+                sensor_datas = struct.unpack("HHHHHHHHff", data[1:len(data) - 3])
+                temp_mq135  += sensor_datas[0] / gas_data_max
+                temp_mq136  += sensor_datas[1] / gas_data_max
+                temp_mq137  += sensor_datas[2] / gas_data_max
+                temp_mq138  += sensor_datas[3] / gas_data_max
+                temp_mq2    += sensor_datas[4] / gas_data_max
+                temp_mq3    += sensor_datas[5] / gas_data_max
+                temp_tgs822 += sensor_datas[6] / gas_data_max
+                temp_2620   += sensor_datas[7] / gas_data_max
 
-        yield f"id: message\ndata: {gasDFtoJson(gas_datas)}\n\n"
+                gas_data_counter += 1
+
+            elif(message_id == Message.CYCLE_START):
+                print("cyclestart")
+            
+            if(gas_data_counter >= gas_data_max):
+                gas_data_counter = 0
+
+                gas_datas["MQ135"]      = gas_datas["MQ135"].shift(-1,      fill_value=temp_mq135)
+                gas_datas["MQ136"]      = gas_datas["MQ136"].shift(-1,      fill_value=temp_mq136)
+                gas_datas["MQ137"]      = gas_datas["MQ137"].shift(-1,      fill_value=temp_mq137)
+                gas_datas["MQ138"]      = gas_datas["MQ138"].shift(-1,      fill_value=temp_mq138)
+                gas_datas["MQ2"]        = gas_datas["MQ2"].shift(-1,        fill_value=temp_mq2)
+                gas_datas["MQ3"]        = gas_datas["MQ3"].shift(-1,        fill_value=temp_mq3)
+                gas_datas["TGS822"]     = gas_datas["TGS822"].shift(-1,     fill_value=temp_tgs822)
+                gas_datas["TGS2620"]    = gas_datas["TGS2620"].shift(-1,    fill_value=temp_2620)
+
+                temp_mq135  = 0
+                temp_mq136  = 0
+                temp_mq137  = 0
+                temp_mq138  = 0
+                temp_mq2    = 0
+                temp_mq3    = 0
+                temp_tgs822 = 0
+                temp_2620   = 0
+
+                yield f"id: message\ndata: {gasDFtoJson(gas_datas)}\n\n"
+
+        except Exception as e:
+            print(e)
 
 # events = Queue()
 is_starting = False
